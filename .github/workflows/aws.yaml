@@ -44,3 +44,28 @@ jobs:
           docker build . --tag ${{ env.REGISTRY }}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}
           docker push ${{ env.REGISTRY }}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+    
+      - name: Checkout Kubernetes manifests repo
+        uses: actions/checkout@v3
+        with:
+          repository: dd-japan/frontend-manifest
+          token: ${{ secrets.GH_TOKEN }}
+          path: frontend-manifest
+
+      - name: List files for debugging
+        run: ls -R frontend-manifest
+        
+      - name: Update Deployment manifests
+        run: |
+            sed -i 's|image: public.ecr.aws/b1o7r7e0/frontend:[^[:space:]]*|image: public.ecr.aws/b1o7r7e0/frontend:${{ github.sha }}|g' frontend-manifest/manifest/frontend.yaml
+            cat frontend-manifest/manifest/frontend.yaml
+
+      - name: Commit and push changes
+        working-directory: frontend-manifest
+        run: |
+            git config user.name "GitHub Actions Bot"
+            git config user.email "actions@github.com"
+            git add manifest/frontend.yaml
+            git status
+            git commit -m "Update image to public.ecr.aws/b1o7r7e0/frontend:${{ env.IMAGE_TAG }}"
+            git push origin main
