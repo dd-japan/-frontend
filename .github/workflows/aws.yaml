@@ -1,52 +1,46 @@
-name: ecr push image
+name: Build and push an image to ECR public
 
 on:
-  workflow_dispatch:
   push:
-    branches:
-      - main
-      - master
-      - 'feature/**'
-    # paths
-    #   - 'src/**' # srcディレクトリ以下のファイルに変更があった場合に実行
+    branches:　[ "main" ]
+
 env:
   AWS_REGION: us-east-1                   # set this to your preferred AWS region, e.g. us-west-1
   ECR_REPOSITORY: b1o7r7e0/frontend           # set this to your Amazon ECR repository name
+
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
   push:
     name: Push Image to ECR
     runs-on: ubuntu-latest
-    # `permissions` を設定しないと OIDC が使えないので注意
-    permissions:
-      id-token: write
-      contents: read
-    steps:
-      - uses: actions/checkout@v3
 
-      # AWS 認証
-      - uses: aws-actions/configure-aws-credentials@v4
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: "us-east-1"
           role-to-assume: "arn:aws:iam::601427279990:role/AoTo-gh-ecr-push-role"
+          role-session-name: MySessionName
 
-      # ECR ログイン
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v1
-        id: login-ecr # outputs で参照するために id を設定
+        id: login-ecr
         with:
           registry-type: public
 
-      # Docker イメージを build・push する
-      - name: build and push docker image to ecr
+      - name: Build and push docker image to ECR
+        id: build-image
         env:
-          # ECR レジストリを `aws-actions/amazon-ecr-login` アクションの `outputs.registry` から取得
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          # イメージを push する ECR リポジトリ名
           REPOSITORY: "b1o7r7e0/frontend"
-          # 任意のイメージタグ
-          # 今回は Git のコミットハッシュにしておく
           IMAGE_TAG: latest #${{ github.sha }}
         run: |
           docker build . --tag ${{ env.REGISTRY }}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}
           docker push ${{ env.REGISTRY }}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
